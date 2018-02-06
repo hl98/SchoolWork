@@ -1,0 +1,105 @@
+;Name: Daniel Ramirez, Helena Luu, Erick Akins
+;LAB 3 BLINK WITH INTERRUPTS
+
+; PIC16F1829 Configuration Bit Settings
+
+; Assembly source line config statements
+
+#include "p16f1829.inc"
+;!!DEFINE MASK HERE!!
+    #define mask (1 << 5)
+ 
+; CONFIG1
+; __config 0xC9E4
+ __CONFIG _CONFIG1, _FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_OFF & _CLKOUTEN_OFF & _IESO_OFF & _FCMEN_OFF
+; CONFIG2
+; __config 0xDEFF
+ __CONFIG _CONFIG2, _WRT_OFF & _PLLEN_OFF & _STVREN_ON & _BORV_LO & _LVP_OFF
+
+
+ 
+    list p=16F1829, R=DEC
+    
+
+
+    CBLOCK 0x30 ; Define GPR variable register locations
+VarA
+VarB
+    ENDC
+  
+    ORG 0
+    goto Start   
+;!!PLACE ISR HERE!!
+    ORG 4		;location jumped to when interrupt is triggered
+    BANKSEL INTCON	;Select INTCON
+    BTFSS INTCON, 2	;Test if interrupt is caused by TMR0
+    RESET
+    BCF INTCON, 2	;clear flag
+    BANKSEL LATA	;select Latch A
+    MOVLW mask		;Load the mask into W (this is an immediate instruction)
+    XORWF LATA
+    RETFIE
+    
+    
+Start
+;Clock Setup
+    BANKSEL	OSCCON 	
+    movlw   	0x6A   	 	
+    movwf  	OSCCON
+;Input Output Setup
+    ;Configure all of TRISA to be output
+    BANKSEL 	TRISA  	 	
+    clrf    	TRISA
+    ;Set all LATCH A outputs to 0
+    BANKSEL	LATA
+    clrf	LATA
+    ;Configure Push Button as Input
+    BANKSEL	TRISB
+    bsf		TRISB, 5
+    ;Configure Push Input as Digital
+    BANKSEL	ANSELB
+    bcf		ANSELB, 5
+    ;Configure Option Registor for TMR0
+    BANKSEL	OPTION_REG
+    movlw	0x87
+    movwf	OPTION_REG
+    
+    ;Interrupt Control Register Setup
+
+;!!PLACE INTCON SETUP HERE!!
+    BANKSEL INTCON
+    bcf INTCON, 2   ;Clear TMRO flag
+    bsf INTCON, 7   ;set GIE bit on INTCON
+    bsf INTCON, 5   ;set TMROIE bit on INTCON
+   
+    ;Execution Loop
+Loop
+    BANKSEL PORTB
+    btfss   PORTB, 5
+    bra     Loop
+    BANKSEL LATA		
+    bsf	    LATA, 4		
+    call Delay
+    BANKSEL LATA
+    bcf	    LATA, 4
+    call Delay
+    goto Loop
+    
+    ;16 bit variable based delay
+Delay
+    BANKSEL VarA
+    movlw   0xFF
+    movwf   VarA
+Outside
+    decfsz  VarA
+    goto    Goon
+    return      
+Goon
+    movlw   0xFF
+    movwf   VarB
+Inside
+    decfsz  VarB
+    goto    Inside
+    goto    Outside
+    
+    end
