@@ -39,8 +39,8 @@ void main(void) {
 //Tristate and Port Configs
     TRISA = 0x00; //0b00000000 TRIS is like mode
     PORTA = 0x00; //0b00000000 PORT is like status
-    TRISB = 1; //idk lol
-    ANSELB = 1; //i still don't know lol
+    TRISB = 0xE0; //idk lol
+    ANSELB = 0; //i still don't know lol
    
     //Infinite While Loop
 while(1){
