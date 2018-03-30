@@ -1,0 +1,625 @@
+#include <xc.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include  "i2c.h"
+#include  "i2c_LCD.h"
+
+//CONFIG1
+#pragma config FOSC = INTOSC    // Oscillator Selection (INTOSC oscillator: I/O function on CLKIN pin)
+#pragma config WDTE = OFF       // Watchdog Timer Enable (WDT disabled)
+#pragma config PWRTE = OFF      // Power-up Timer Enable (PWRT disabled)
+#pragma config MCLRE = ON       // MCLR Pin Function Select (MCLR/VPP pin function is MCLR)
+#pragma config CP = OFF         // Flash Program Memory Code Protection (Program memory code protection is disabled)
+#pragma config CPD = OFF        // Data Memory Code Protection (Data memory code protection is disabled)
+#pragma config BOREN = ON       // Brown-out Reset Enable (Brown-out Reset enabled)
+#pragma config CLKOUTEN = OFF   // Clock Out Enable (CLKOUT function is disabled. I/O or oscillator function on the CLKOUT pin)
+#pragma config IESO = OFF       // Internal/External Switchover (Internal/External Switchover mode is disabled)
+#pragma config FCMEN = OFF      // Fail-Safe Clock Monitor Enable (Fail-Safe Clock Monitor is disabled)
+
+//CONFIG2
+#pragma config WRT = OFF        // Flash Memory Self-Write Protection (Write protection off)
+#pragma config PLLEN = OFF      // PLL Enable (4x PLL disabled)
+#pragma config STVREN = ON      // Stack Overflow/Underflow Reset Enable (Stack Overflow or Underflow will cause a Reset)
+#pragma config BORV = LO        // Brown-out Reset Voltage Selection (Brown-out Reset Voltage (Vbor), low trip point selected.)
+#pragma config LVP = OFF        // Low-Voltage Programming Enable (High-voltage on MCLR/VPP must be used for programming)
+
+#define I2C_SLAVE 0x27  /* was 1E Channel of i2c slave depends on soldering on back of board*/
+#define _XTAL_FREQ 4000000.0 /*for 4mhz*/
+
+//Prototypes
+void I2C_LCD_Command(unsigned char,unsigned char);
+void I2C_LCD_SWrite(unsigned char,unsigned char *, char);
+void I2C_LCD_Init(unsigned char);
+void I2C_LCD_Pos(unsigned char,unsigned char);
+unsigned char I2C_LCD_Busy(unsigned char);
+
+void main(void) {
+
+    //Variables
+    unsigned char  Sout[16];
+    unsigned char * Sptr;
+    int z;
+        Sptr = Sout;
+
+    //Clock and Pin Configs
+    OSCCON = 0x68;
+    OSCCON = 0x6A;
+
+    //Tristate and Port Configs for Buzzer
+    ADCON0 = 0xC0; //Port for PWM
+    TRISC = 0x00; //Port for Buzzer
+    ANSELC = 0X08; //Port for Buzzer
+    TRISA = 0x00; //Port for Hello World LED
+    ANSELA = 0x00; //Port for Hello World LED
+    PORTA = 0x00; //Port for Hello World LED
+    TRISB = 0xE0; //Port for Push Button
+    ANSELB = 0; //Port for Push Button
+    
+    //PWM Configs
+    APFCON1 = 0x00; //Set PWM to alternative PIN RA5 (HELLO WORLD LED)
+    PR2 = 0xFA; //PR2 value needed for 1000Hz frequency
+    CCP2CON = 0x0C; //Enable pwm mode pg.238
+    CCPR2L = 0x80; //Set initial duty cycle to 0
+    CCPTMRS = 0x00; //Set TMR2 to work with PWM
+    T2CON = 0x05; // 1:1 postscaler 4:1 prescaler on timer 2 pg.203
+
+    //LCD Setup
+    i2c_Init(); //Start I2C as Master 100KH
+    I2C_LCD_Init(I2C_SLAVE); //Pass I2C_SLAVE to the init function to create an instance
+
+    int x=0x00; //Set position to start top line
+    int y=0x40; //Set position to start bottom line
+    int arraycounter=0, counter=0;
+    char d, n, l;
+    char decoder[];
+
+    I2C_LCD_Command(I2C_SLAVE, 0x01);
+
+    while(1){
+        while(RB5 == 0){
+
+        __delay_ms(100);
+        counter++;
+}
+
+    if(counter<=3 && counter>=1){
+        I2C_LCD_Pos(I2C_SLAVE, x);
+        sprintf(Sout, ".");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        RA5=1;
+        TRISCbits.TRISC3 = 0;
+        __delay_ms(300);
+        RA5=0;
+        TRISCbits.TRISC3 = 1;
+        __delay_ms(1000.00);
+        x++;
+        decoder[arraycounter] = d;
+        arraycounter++;
+        counter=0;
+    }
+
+    if(counter>=3){
+        I2C_LCD_Pos(I2C_SLAVE, x);
+        sprintf(Sout, "-");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        RA5=1;
+        TRISCbits.TRISC3 = 0;
+        __delay_ms(600);
+        RA5=0;
+        TRISCbits.TRISC3 = 1;
+        __delay_ms(1000.00);
+        x++;
+        decoder[arraycounter] = l;
+        arraycounter++;
+        counter=0;
+    }
+
+    if(decoder[0] == d && decoder[1] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "A");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d && decoder[2] == d && decoder[3] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "B");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d && decoder[2] == l && decoder[3] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "C");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d && decoder[2] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "D");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "E");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == l && decoder[3] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "F");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "G");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == d && decoder[3] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "H");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "I");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == l && decoder[2] == l && decoder[3] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "J");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d && decoder[2] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "K");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == l && decoder[2] == d && decoder[3] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "L");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "M");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "N");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "O");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == l && decoder[2] == l && decoder[2] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "P");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == d && decoder[3] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "Q");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == l && decoder[2] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "R");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "S");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "T");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "U");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == d && decoder[3] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "V");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == l && decoder[2] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "W");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d && decoder[2] == d && decoder[3] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "X");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d && decoder[2] == l && decoder[3] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "Y");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == d && decoder[3] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "Z");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    //NUMBERS
+    if(decoder[0] == d && decoder[1] == l && decoder[2] == l && decoder[3] == l && decoder[4] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "1");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == l && decoder[3] == l && decoder[4] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "2");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == d && decoder[3] == l && decoder[4] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "3");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == d && decoder[3] == d && decoder[4] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "4");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == d && decoder[1] == d && decoder[2] == d && decoder[3] == d && decoder[4] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "5");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == d && decoder[2] == d && decoder[3] == d && decoder[4] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "6");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == d && decoder[3] == d && decoder[4] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "7");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == l && decoder[3] == d && decoder[4] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "8");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == l && decoder[3] == l && decoder[4] == d){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "9");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+
+    if(decoder[0] == l && decoder[1] == l && decoder[2] == l && decoder[3] == l && decoder[4] == l){
+        I2C_LCD_Pos(I2C_SLAVE, y);
+        sprintf(Sout, "0");
+        I2C_LCD_SWrite(I2C_SLAVE, Sout, 1);
+        __delay_ms(1000.00);
+        y++;
+        decoder[0] = n;
+        decoder[1] = n;
+        decoder[2] = n;
+        decoder[3] = n;
+        decoder[4] = n;
+        I2C_LCD_Pos(I2C_SLAVE, x);
+    }
+        
+}
+
+}
